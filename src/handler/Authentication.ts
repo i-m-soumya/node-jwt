@@ -1,21 +1,26 @@
 import bcrypt from "bcrypt";
 import User from "../model/user";
 import jwt from "jsonwebtoken";
+import { Validator } from "node-input-validator"
 
 
 export default class Authentication {
     static async register(req: any, res: any) {
         try {
             let TOKEN_KEY: string = process.env.TOKEN_KEY || 'x'
+            const validate = new Validator(req.body, {
+                email: 'required|email',
+                password: 'required|minLength:5',
+                first_name: 'required|string',
+                last_name: 'required|string'
+            });
+            validate.check().then((matched) => {
+                if (!matched) {
+                    res.status(422).send(validate.errors);
+                }
+            });
             const { first_name, last_name, email, password } = req.body;
 
-            // Validate user input
-            if (!(email && password && first_name && last_name)) {
-                res.status(400).send("All input is required");
-            }
-
-            // check if user already exist
-            // Validate if user exist in our database
             const oldUser = await User.findOne({ email });
 
             if (oldUser) {
