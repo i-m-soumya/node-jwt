@@ -44,11 +44,11 @@ export default class Authentication {
                     const user = await User.create({
                         first_name,
                         last_name,
-                        email: email.toLowerCase(), // sanitize: convert email to lowercase
+                        email: email.toLowerCase(),
                         password: encryptedPassword,
                     });
 
-                    // Create token
+                    // Create JWT token
                     const token = jwt.sign(
                         { user_id: user._id, email },
                         TOKEN_KEY,
@@ -56,10 +56,7 @@ export default class Authentication {
                             expiresIn: "2h",
                         }
                     );
-                    // save user token
                     user.token = token;
-
-                    // return new user
                     return res.status(201).json(user);
                 }
             });
