@@ -2,10 +2,11 @@ import bcrypt from "bcrypt";
 import User from "../model/user";
 import jwt from "jsonwebtoken";
 import { Validator } from "node-input-validator"
+import { ResponseFormat } from "../interface";
 
 
 export default class Authentication {
-    static async register(req: any, res: any) {
+    static async register(req: any, res: any): Promise<any> {
         try {
             let TOKEN_KEY: string = process.env.TOKEN_KEY || 'x'
             const validate = new Validator(req.body, {
@@ -14,43 +15,54 @@ export default class Authentication {
                 first_name: 'required|string',
                 last_name: 'required|string'
             });
-            validate.check().then((matched) => {
+            validate.check().then(async (matched) => {
                 if (!matched) {
-                    res.status(422).send(validate.errors);
+                    let response: ResponseFormat = {
+                        status: 422,
+                        message: "Please provide the parameters in correct format!",
+                        data: validate.errors
+                    }
+                    return res.status(422).json(response)
+                } else {
+                    const { first_name, last_name, email, password } = req.body;
+
+                    const oldUser = await User.findOne({ email });
+
+                    if (oldUser) {
+                        let response: ResponseFormat = {
+                            status: 409,
+                            message: "User Already Exist. Please Login",
+                            data: {}
+                        }
+                        return res.status(409).json(response)
+                    }
+
+                    //Encrypt user password
+                    let encryptedPassword = await bcrypt.hash(password, 10);
+
+                    // Create user in our database
+                    const user = await User.create({
+                        first_name,
+                        last_name,
+                        email: email.toLowerCase(), // sanitize: convert email to lowercase
+                        password: encryptedPassword,
+                    });
+
+                    // Create token
+                    const token = jwt.sign(
+                        { user_id: user._id, email },
+                        TOKEN_KEY,
+                        {
+                            expiresIn: "2h",
+                        }
+                    );
+                    // save user token
+                    user.token = token;
+
+                    // return new user
+                    return res.status(201).json(user);
                 }
             });
-            const { first_name, last_name, email, password } = req.body;
-
-            const oldUser = await User.findOne({ email });
-
-            if (oldUser) {
-                return res.status(409).send("User Already Exist. Please Login");
-            }
-
-            //Encrypt user password
-            let encryptedPassword = await bcrypt.hash(password, 10);
-
-            // Create user in our database
-            const user = await User.create({
-                first_name,
-                last_name,
-                email: email.toLowerCase(), // sanitize: convert email to lowercase
-                password: encryptedPassword,
-            });
-
-            // Create token
-            const token = jwt.sign(
-                { user_id: user._id, email },
-                TOKEN_KEY,
-                {
-                    expiresIn: "2h",
-                }
-            );
-            // save user token
-            user.token = token;
-
-            // return new user
-            res.status(201).json(user);
         } catch (err) {
             console.log(err);
         }
